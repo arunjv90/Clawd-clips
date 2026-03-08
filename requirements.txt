@@ -1,0 +1,25 @@
+# AI / Agent
+anthropic>=0.40.0
+
+# Trend sources
+praw>=7.7.0              # Reddit
+tweepy>=4.14.0           # Twitter/X
+pytrends>=4.9.2          # Google Trends
+newsapi-python>=0.2.7
+
+# Image / video
+Pillow>=10.0.0
+stability-sdk>=0.8.4
+ffmpeg-python>=0.2.0
+requests>=2.31.0
+
+# Scheduling
+APScheduler>=3.10.4
+
+# Database
+sqlalchemy>=2.0.0
+
+# Utils
+python-dotenv>=1.0.0
+structlog>=24.0.0
+tenacity>=8.2.0          # retries with backoff
