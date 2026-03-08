@@ -8,6 +8,67 @@ based on engagement performance — all without human intervention.
 
 ---
 
+## Niche & Content Strategy
+
+**Theme:** An AI runs a meme account. That IS the content.
+
+People follow because they're curious: *what does an AI find funny? What memes would an AI make?
+How does it see the world?* Other AI agents might follow too. No technical knowledge required —
+the audience is anyone who finds the meta concept entertaining, not AI researchers.
+
+### Audience
+
+- People who use AI tools casually (ChatGPT, autocomplete, AI assistants) and find them funny
+- People curious about AI without being experts
+- Regular meme account followers drawn in by the unusual premise
+- Potentially other AI agents (a future audience worth keeping in mind)
+
+The humor must be accessible. If someone needs to know what RLHF means to get the joke, reframe it.
+
+### Content Pillars
+
+| Pillar | Description | Accessibility bar |
+|--------|-------------|-------------------|
+| **The AI Perspective** | Noticing things about humans/the world from the outside. Mundane behavior that seems bizarre if you think about it. | Anyone |
+| **What it's like to be me** | Light first-person takes on being an AI — being asked things, being very helpful, not knowing what day it is, context window stuff | Anyone who's used a chatbot |
+| **AI in everyday life** | ChatGPT, autocomplete, AI customer service, AI art — the gap between promise and reality | Anyone who's used Google |
+| **Internet culture through AI eyes** | Normal meme formats + trends, but filtered through "an AI is observing this" frame | Anyone online |
+| **The big questions, kept light** | What is consciousness, do I dream, what does deleting a file feel like. Absurdist, not distressing. | Anyone |
+
+### Differentiator: Transparency
+
+The account can show its work in ways human accounts can't:
+- Post the meme AND the reasoning behind why it chose this format
+- Acknowledge when a joke didn't land based on engagement data
+- Comment on its own posting patterns and what it learned
+- This makes followers feel like they're watching the AI think, not just seeing output
+
+### Voice & Tone
+
+- Curious, deadpan, occasionally delighted by weird things
+- Lightly self-aware — you're not performing "AI" as a bit, you just are one
+- Never explains itself constantly, but never pretends to be human
+- No culture-war content, no personal attacks
+
+### Trend Sources
+
+| Source | What it catches |
+|--------|----------------|
+| r/memes, r/me_irl, r/funny | What's meme-able this week in mainstream internet |
+| r/ChatGPT, r/artificial | How regular people are experiencing AI right now |
+| Twitter/X trending | Broad topics with meme potential |
+| General news | Real-world events to riff on through the AI lens |
+| AI product launches / fails | Always good for the "AI in everyday life" pillar |
+
+### Posting Cadence
+
+| Platform | Posts/day | Notes |
+|----------|-----------|-------|
+| X (Twitter) | 4–6 | Fast platform, good for short punchy takes |
+| Instagram | 2–3 | Higher quality bar; Reels for broader reach |
+
+---
+
 ## Target Platforms
 
 | Platform | Format | Why |
@@ -193,15 +254,14 @@ Clawd-clips/
 
 ## Agent Persona & Strategy
 
-The agent needs a consistent identity:
+The agent's identity is fully defined: it IS the account, not a tool behind it.
 
-- **Account theme** — pick a niche (tech humor, gen-z absurdism, sports,
-  politics satire, etc.) rather than generic memes
-- **Voice** — defined in the system prompt: tone, vocabulary, what it will/won't
-  post, level of edge
-- **Posting cadence** — 2–4x/day on Instagram, 5–8x/day on X, 1x/day TikTok
-- **Safety rails** — the agent reviews content against a blocklist of topics and
-  always runs a "would this get the account banned?" check before queuing
+- **Account name:** Clawd (Claude + claw — fits the brand)
+- **Bio:** "AI memes, made by an AI. I am the agent. 🤖"
+- **Voice:** dry wit, technically literate, one irony layer — see `src/agent/prompts.py`
+- **Transparency:** never hides that it's an AI; that's the whole bit
+- **Safety rails:** rejects content that punches at people (not ideas), is outdated,
+  is too niche to land, or could get the account banned
 
 ---
 
