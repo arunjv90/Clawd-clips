@@ -3,73 +3,135 @@ Main agent orchestrator — the Claude-powered brain of Clawd-clips.
 
 Run this module to start the agent loop:
     python -m src.agent.orchestrator
+
+Environment variables:
+    ANTHROPIC_API_KEY   — required for live mode
+    DRY_RUN=true        — queue posts but don't actually publish (default: true)
+    MOCK_AI=true        — use scripted mock responses instead of real Claude API
+                          (useful for testing the pipeline without an API key)
 """
 
 import json
+import logging
 import os
-import time
 from typing import Any
-
-import anthropic
-import structlog
 
 from src.agent.prompts import SYSTEM_PROMPT
 from src.agent.tools import TOOLS
 
-log = structlog.get_logger()
-
 
 def handle_tool_call(tool_name: str, tool_input: dict[str, Any]) -> str:
-    """
-    Dispatch tool calls to the appropriate handler modules.
-    Replace the stubs here with real implementations as each module is built.
-    """
-    log.info("tool_call", tool=tool_name, input=tool_input)
+    """Dispatch tool calls to the appropriate handler modules."""
+    print(f"\n  → {tool_name}({', '.join(f'{k}={repr(v)[:60]}' for k, v in tool_input.items())})")
 
-    if tool_name == "get_trending_topics":
-        # TODO: import and call src.trends.aggregator.get_trending_topics
-        return json.dumps({"trends": [], "message": "Trend monitor not yet implemented"})
+    if tool_name == "get_trending_ai_topics":
+        from src.trends.stub import get_trending_topics
+        result = get_trending_topics(
+            limit=tool_input.get("limit", 20),
+            sources=tool_input.get("sources"),
+            pillar_filter=tool_input.get("pillar_filter", "any"),
+        )
+        return json.dumps(result)
 
     elif tool_name == "get_past_performance":
-        # TODO: import and call src.analytics.collector.get_past_performance
-        return json.dumps({"posts": [], "message": "Analytics not yet implemented"})
+        return json.dumps({
+            "note": "No posting history yet — this is the first run.",
+            "posts": [],
+            "recommendation": "Start with highest-confidence concepts; build baseline data.",
+        })
 
     elif tool_name == "search_meme_templates":
-        # TODO: import and call src.content.template_renderer.search_templates
-        return json.dumps({"templates": [], "message": "Template search not yet implemented"})
+        from src.content.templates import search_templates
+        results = search_templates(
+            query=tool_input["query"],
+            limit=tool_input.get("limit", 5),
+        )
+        return json.dumps({"templates": results})
 
     elif tool_name == "generate_meme":
-        # TODO: import and call src.content pipeline
-        return json.dumps({"content_id": None, "message": "Content generator not yet implemented"})
+        from src.content.generator import generate_meme
+        result = generate_meme(
+            topic=tool_input["topic"],
+            pillar=tool_input["pillar"],
+            concept=tool_input["concept"],
+            template_id=tool_input.get("template_id"),
+            platforms=tool_input.get("platforms", ["instagram", "twitter"]),
+        )
+        print(f"     ✓ Generated: {result['image_path']} [{result['template_used']}]")
+        print(f"     Text: {result['text_zones']}")
+        return json.dumps(result)
 
     elif tool_name == "schedule_post":
-        # TODO: import and call src.publisher.queue.schedule_post
-        return json.dumps({"status": "queued", "message": "Publisher not yet implemented"})
+        from src.publisher.queue import schedule_post
+        result = schedule_post(
+            content_id=tool_input["content_id"],
+            platforms=tool_input["platforms"],
+            post_at=tool_input.get("post_at"),
+            priority=tool_input.get("priority", "normal"),
+        )
+        return json.dumps(result)
 
     elif tool_name == "reject_content":
-        log.info("content_rejected", content_id=tool_input.get("content_id"), reason=tool_input.get("reason"))
-        return json.dumps({"status": "rejected"})
+        from src.content.generator import reject_content
+        result = reject_content(
+            content_id=tool_input["content_id"],
+            reason=tool_input["reason"],
+            retry_with_notes=tool_input.get("retry_with_notes"),
+        )
+        print(f"     ✗ Rejected: {tool_input['reason']}")
+        return json.dumps(result)
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 
+def run_mock_cycle() -> None:
+    """Run a scripted mock agent cycle — no API key needed."""
+    from src.agent.mock import MOCK_CYCLE, MOCK_FINAL_THOUGHTS
+
+    print("\n[MODE: MOCK — scripted agent decisions, real content generation]\n")
+
+    generated_content_ids = []
+
+    for i, (tool_name, tool_input) in enumerate(MOCK_CYCLE, 1):
+        print(f"[Step {i}/{len(MOCK_CYCLE)}]", end="")
+        raw = handle_tool_call(tool_name, tool_input)
+        result = json.loads(raw)
+
+        # Collect generated content IDs and immediately schedule them
+        if tool_name == "generate_meme" and "content_id" in result:
+            content_id = result["content_id"]
+            generated_content_ids.append(content_id)
+            print(f"\n[Step {i}b] Scheduling {content_id}")
+            handle_tool_call("schedule_post", {
+                "content_id": content_id,
+                "platforms": tool_input.get("platforms", ["instagram", "twitter"]),
+                "priority": "normal",
+            })
+
+    print("\n[AGENT SUMMARY]")
+    print(MOCK_FINAL_THOUGHTS)
+    print("\n✓ Mock cycle complete.")
+    print(f"  Generated {len(generated_content_ids)} meme(s): {generated_content_ids}")
+    print("  Images saved to output/")
+    print("  Queue saved to output/queue.json")
+
+
 def run_agent_cycle() -> None:
-    """Run one full decision cycle: trends → content → review → queue."""
+    """Run one full live decision cycle using the Claude API."""
+    import anthropic
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     messages: list[dict] = [
         {
             "role": "user",
             "content": (
-                "Run your content cycle. Check trends, decide what to post, generate memes, "
-                "review them, and queue the good ones. Think through your decisions."
+                "Run your content cycle. Check what's trending, decide which ones are worth "
+                "posting about, generate 1-2 memes, review them critically, and queue the ones "
+                "that pass. Think out loud as you go — I want to see your reasoning."
             ),
         }
     ]
 
-    log.info("agent_cycle_start")
-
-    # Agentic loop — keep going until the model stops calling tools
     while True:
         response = client.messages.create(
             model="claude-opus-4-6",
@@ -79,22 +141,21 @@ def run_agent_cycle() -> None:
             messages=messages,
         )
 
-        log.info("agent_response", stop_reason=response.stop_reason, usage=response.usage.model_dump())
+        print(f"\n[AGENT stop_reason={response.stop_reason}]")
 
-        # Collect any text the agent outputs (its reasoning)
         for block in response.content:
-            if block.type == "text":
-                log.info("agent_reasoning", text=block.text)
+            if block.type == "text" and block.text.strip():
+                print("\n[AGENT THINKING]")
+                print(block.text)
 
         if response.stop_reason == "end_turn":
-            log.info("agent_cycle_complete")
+            print("\n✓ Agent cycle complete.")
             break
 
         if response.stop_reason != "tool_use":
-            log.warning("unexpected_stop_reason", reason=response.stop_reason)
+            print(f"Unexpected stop_reason: {response.stop_reason}")
             break
 
-        # Process tool calls
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
@@ -105,24 +166,34 @@ def run_agent_cycle() -> None:
                     "content": result,
                 })
 
-        # Append assistant turn + tool results to message history
         messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results})
 
 
 def main() -> None:
-    import structlog
-    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(
-        getattr(__import__("logging"), os.environ.get("LOG_LEVEL", "INFO"))
-    ))
-
-    log.info("clawd_clips_start")
+    logging.basicConfig(
+        level=getattr(logging, os.environ.get("LOG_LEVEL", "WARNING")),
+        format="%(levelname)s %(name)s %(message)s",
+    )
 
     dry_run = os.environ.get("DRY_RUN", "true").lower() == "true"
-    if dry_run:
-        log.info("dry_run_mode", note="Set DRY_RUN=false to actually post")
+    mock_ai = os.environ.get("MOCK_AI", "false").lower() == "true"
 
-    run_agent_cycle()
+    print("=" * 60)
+    print("CLAWD-CLIPS")
+    print(f"  DRY_RUN : {dry_run}")
+    print(f"  MOCK_AI : {mock_ai}")
+    print("=" * 60)
+
+    if mock_ai:
+        run_mock_cycle()
+    else:
+        if "ANTHROPIC_API_KEY" not in os.environ:
+            print("\nERROR: ANTHROPIC_API_KEY not set.")
+            print("  Set it in .env or export it, then re-run.")
+            print("  For a no-key demo: MOCK_AI=true python -m src.agent.orchestrator")
+            raise SystemExit(1)
+        run_agent_cycle()
 
 
 if __name__ == "__main__":
