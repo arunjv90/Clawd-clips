@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blackjack Trainer</title>
+<style>
+  :root {
+    --green: #1a6b3a;
+    --felt: #145230;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --dark: #0d1f13;
+    --card-bg: #fff;
+    --card-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    --red: #c0392b;
+    --text: #f0ead6;
+    --muted: #8fa88f;
+    --panel: rgba(0,0,0,0.35);
+    --correct: #27ae60;
+    --wrong: #e74c3c;
+    --warn: #f39c12;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--felt);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 70%),
+      repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px);
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px 20px 0;
+    flex-wrap: wrap;
+  }
+  .nav-btn {
+    background: var(--panel);
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    padding: 9px 22px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+    text-transform: uppercase;
+  }
+  .nav-btn.active, .nav-btn:hover {
+    background: var(--gold);
+    color: var(--dark);
+  }
+  h1 {
+    text-align: center;
+    color: var(--gold);
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
+    padding: 14px 20px 0;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+
+  /* ── VIEWS ── */
+  .view { display: none; padding: 24px 16px 40px; max-width: 900px; margin: 0 auto; }
+  .view.active { display: block; }
+
+  /* ── CARDS ── */
+  .card-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+  .card {
+    width: 64px; height: 90px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: bold;
+    position: relative;
+    border: 1px solid #ccc;
+    color: #222;
+    user-select: none;
+  }
+  .card.red { color: var(--red); }
+  .card .suit { font-size: 1.1rem; line-height: 1; }
+  .card.face-down {
+    background: linear-gradient(135deg, #1a3a6b 25%, #0d2144 25%, #0d2144 50%, #1a3a6b 50%, #1a3a6b 75%, #0d2144 75%);
+    background-size: 10px 10px;
+    color: transparent;
+  }
+  .card.face-down::after {
+    content: '';
+    position: absolute; inset: 4px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+  }
+
+  /* ── DEALER / PLAYER LABELS ── */
+  .hand-area { margin: 10px 0; text-align: center; }
+  .hand-label { font-size: 0.8rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .hand-value { font-size: 1.1rem; color: var(--gold-light); min-height: 1.4em; }
+
+  /* ── ACTION BUTTONS ── */
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 18px 0 10px; }
+  .action-btn {
+    background: var(--panel);
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 11px 26px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    letter-spacing: 0.05em;
+  }
+  .action-btn:hover { background: var(--gold); color: var(--dark); transform: translateY(-1px); }
+  .action-btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+  .action-btn.correct-flash { background: var(--correct); border-color: var(--correct); color: #fff; }
+  .action-btn.wrong-flash { background: var(--wrong); border-color: var(--wrong); color: #fff; }
+
+  /* ── FEEDBACK BOX ── */
+  .feedback {
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    display: none;
+  }
+  .feedback.correct { background: rgba(39,174,96,0.18); border: 1px solid var(--correct); display: block; }
+  .feedback.wrong { background: rgba(231,76,60,0.18); border: 1px solid var(--wrong); display: block; }
+  .feedback.info { background: rgba(201,168,76,0.13); border: 1px solid var(--gold); display: block; }
+  .feedback strong { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+
+  /* ── BANKROLL / STATS ── */
+  .stats-bar {
+    display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 8px;
+    padding: 12px 20px;
+    margin: 0 0 18px;
+  }
+  .stat { text-align: center; }
+  .stat-val { font-size: 1.4rem; color: var(--gold-light); font-weight: bold; }
+  .stat-val.up { color: var(--correct); }
+  .stat-val.down { color: var(--wrong); }
+  .stat-lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ── BET ── */
+  .bet-row { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 10px 0; }
+  .bet-row label { color: var(--muted); font-size: 0.9rem; }
+  .chip-btn {
+    background: var(--panel);
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 7px 14px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .chip-btn:hover { background: var(--gold); color: var(--dark); }
+  .chip-btn.active { background: var(--gold); color: var(--dark); }
+  #bet-display {
+    font-size: 1.2rem; color: var(--gold-light); min-width: 70px;
+    text-align: center; background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.3); border-radius: 4px; padding: 6px 12px;
+  }
+
+  /* ── CHART ── */
+  .chart-container {
+    background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 18px 0;
+  }
+  .chart-title { color: var(--gold); font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+  canvas { width: 100% !important; }
+
+  /* ── TRAINING VIEW ── */
+  .training-controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+  .tab-btn {
+    background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 7px 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .tab-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.12); }
+  .tab-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .strategy-table-wrap { overflow-x: auto; margin: 10px 0; }
+  table.strat {
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    min-width: 540px;
+    width: 100%;
+  }
+  table.strat th, table.strat td {
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 5px 7px;
+    text-align: center;
+  }
+  table.strat th { background: rgba(0,0,0,0.4); color: var(--gold); font-size: 0.75rem; letter-spacing: 0.06em; }
+  table.strat td { cursor: pointer; transition: opacity 0.1s; }
+  table.strat td:hover { opacity: 0.75; }
+  .S  { background: #1a5c8a; }   /* Stand */
+  .H  { background: #6b3a1a; }   /* Hit */
+  .D  { background: #4a6b1a; }   /* Double */
+  .SP { background: #5a1a6b; }   /* Split */
+  .DS { background: #1a6b5a; }   /* Double if allowed, else Stand */
+  td.S::after  { content: 'S'; color: #7ec8f0; font-weight: bold; }
+  td.H::after  { content: 'H'; color: #f0a87e; font-weight: bold; }
+  td.D::after  { content: 'D'; color: #a8f07e; font-weight: bold; }
+  td.SP::after { content: 'SP'; color: #d07ef0; font-weight: bold; }
+  td.DS::after { content: 'DS'; color: #7ef0d0; font-weight: bold; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 18px; font-size: 0.8rem; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 2px; }
+
+  .explanation-box {
+    background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin: 10px 0;
+    min-height: 80px;
+  }
+  .explanation-box h3 { color: var(--gold); margin-bottom: 8px; font-size: 1rem; }
+
+  /* ── DEAL BUTTON ── */
+  .deal-btn {
+    display: block;
+    margin: 14px auto;
+    background: var(--gold);
+    color: var(--dark);
+    border: none;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: bold;
+    padding: 12px 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .deal-btn:hover { background: var(--gold-light); transform: translateY(-1px); }
+  .deal-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+  /* ── RESULT BANNER ── */
+  .result-banner {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    padding: 10px;
+    border-radius: 6px;
+    margin: 10px 0;
+    display: none;
+  }
+  .result-banner.win  { background: rgba(39,174,96,0.25); color: #6eff9e; display: block; }
+  .result-banner.lose { background: rgba(231,76,60,0.25); color: #ff8070; display: block; }
+  .result-banner.push { background: rgba(201,168,76,0.2); color: var(--gold-light); display: block; }
+  .result-banner.bj   { background: rgba(255,215,0,0.25); color: #ffe566; display: block; }
+
+  section.panel {
+    background: var(--panel);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 14px 0;
+  }
+  section.panel h2 { color: var(--gold); margin-bottom: 12px; font-size: 1.05rem; letter-spacing: 0.07em; }
+
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 10px 0; }
+  .insight-card {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .insight-card h4 { color: var(--gold-light); margin-bottom: 6px; font-size: 0.9rem; }
+
+  /* divider */
+  hr.felt { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 18px 0; }
+
+  @media (max-width: 500px) {
+    .card { width: 52px; height: 76px; font-size: 1.1rem; }
+    h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>♠ BLACKJACK TRAINER ♦</h1>
+
+<nav>
+  <button class="nav-btn active" onclick="showView('training')">Training</button>
+  <button class="nav-btn" onclick="showView('practice')">Practice</button>
+  <button class="nav-btn" onclick="showView('tracker')">Winnings Tracker</button>
+</nav>
+
+<!-- ═══════════════════════════════════════ TRAINING VIEW ═══════ -->
+<div id="view-training" class="view active">
+
+  <section class="panel">
+    <h2>The Core Idea</h2>
+    <p style="font-size:0.92rem;line-height:1.6;color:#ccc">
+      Basic strategy eliminates the house edge to ~0.5%. Every decision is calculated from
+      the probability distribution of the remaining deck. You're not guessing — you're
+      maximizing expected value on every hand. Click any cell in the tables below for the
+      <strong style="color:var(--gold)">intuition behind that exact decision</strong>.
+    </p>
+  </section>
+
+  <div class="training-controls">
+    <button class="tab-btn active" onclick="showTable('hard')">Hard Totals</button>
+    <button class="tab-btn" onclick="showTable('soft')">Soft Totals</button>
+    <button class="tab-btn" onclick="showTable('pairs')">Pairs</button>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-swatch" style="background:#1a5c8a"></span>Stand (S)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#6b3a1a"></span>Hit (H)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#4a6b1a"></span>Double (D)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#5a1a6b"></span>Split (SP)</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#1a6b5a"></span>Double/Stand (DS)</span>
+  </div>
+
+  <div class="strategy-table-wrap" id="strat-table-container"></div>
+
+  <div class="explanation-box" id="explanation-box">
+    <h3 id="exp-title">Click any cell to learn the intuition</h3>
+    <p id="exp-body" style="color:#ccc">Each cell shows the mathematically optimal play for that player hand vs. dealer upcard. The colors group similar decisions so patterns become visible at a glance.</p>
+  </div>
+
+  <hr class="felt">
+  <section class="panel">
+    <h2>Key Intuitions</h2>
+    <div class="insight-grid">
+      <div class="insight-card">
+        <h4>Dealer 2–6 = Bust Cards</h4>
+        The dealer must hit until 17. With a low upcard, they have a ~35–42% bust probability. You can "stand pat" on stiff hands (12–16) and let the dealer bust.
+      </div>
+      <div class="insight-card">
+        <h4>Dealer 7–A = Strong Cards</h4>
+        A 7-upcard likely gives the dealer 17. You need to hit aggressively to compete, even risking a bust on your own stiff hands.
+      </div>
+      <div class="insight-card">
+        <h4>Always Double 11</h4>
+        With 11 you can't bust on one card, and any 10-value card (30% of deck) gives you 21. Doubling doubles your expected value.
+      </div>
+      <div class="insight-card">
+        <h4>Always Split A–A and 8–8</h4>
+        Two aces as one hand caps you at soft 12 — terrible. Split and each ace becomes a hand with a shot at 21. Two 8s = 16, the worst possible total. Split to escape.
+      </div>
+      <div class="insight-card">
+        <h4>Never Split 5–5 or 10–10</h4>
+        5+5 = 10, an excellent double opportunity. Don't split a great hand into two mediocre ones. 10+10 = 20 — you're almost certainly winning already.
+      </div>
+      <div class="insight-card">
+        <h4>Soft Hands: Free Hit</h4>
+        An ace can revert from 11 to 1. Soft 17 (A+6) won't bust on any single card. Always try to improve it; standing on soft 17 is a mistake.
+      </div>
+      <div class="insight-card">
+        <h4>Insurance is a Trap</h4>
+        Insurance pays 2:1 but the true odds of a dealer blackjack when showing an ace are ~31%. The bet loses money on average every time.
+      </div>
+      <div class="insight-card">
+        <h4>10-Value Cards = 30%+</h4>
+        There are more 10-value cards (10, J, Q, K) than any other rank. Always assume the dealer's hole card is a 10 — it's the most likely single value.
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ═══════════════════════════════════════ PRACTICE VIEW ═══════ -->
+<div id="view-practice" class="view">
+
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-val" id="bankroll-display">$1000</div><div class="stat-lbl">Bankroll</div></div>
+    <div class="stat"><div class="stat-val" id="hands-display">0</div><div class="stat-lbl">Hands</div></div>
+    <div class="stat"><div class="stat-val" id="correct-display">—</div><div class="stat-lbl">Strategy %</div></div>
+    <div class="stat"><div class="stat-val" id="net-display">+$0</div><div class="stat-lbl">Net P&L</div></div>
+  </div>
+
+  <div class="bet-row">
+    <label>Bet:</label>
+    <button class="chip-btn" onclick="setBet(5)">$5</button>
+    <button class="chip-btn" onclick="setBet(10)">$10</button>
+    <button class="chip-btn" onclick="setBet(25)">$25</button>
+    <button class="chip-btn active" onclick="setBet(50)">$50</button>
+    <button class="chip-btn" onclick="setBet(100)">$100</button>
+    <div id="bet-display">$50</div>
+  </div>
+
+  <div class="hand-area">
+    <div class="hand-label">Dealer</div>
+    <div class="card-row" id="dealer-cards"></div>
+    <div class="hand-value" id="dealer-value"></div>
+  </div>
+
+  <div class="hand-area">
+    <div class="hand-label">You</div>
+    <div class="card-row" id="player-cards"></div>
+    <div class="hand-value" id="player-value"></div>
+  </div>
+
+  <div class="result-banner" id="result-banner"></div>
+  <div class="feedback" id="practice-feedback"></div>
+
+  <div class="actions" id="action-btns">
+    <button class="action-btn" id="btn-hit" onclick="playerAction('hit')">Hit</button>
+    <button class="action-btn" id="btn-stand" onclick="playerAction('stand')">Stand</button>
+    <button class="action-btn" id="btn-double" onclick="playerAction('double')">Double</button>
+    <button class="action-btn" id="btn-split" onclick="playerAction('split')">Split</button>
+  </div>
+
+  <button class="deal-btn" id="deal-btn" onclick="dealHand()">Deal</button>
+</div>
+
+<!-- ═══════════════════════════════════════ TRACKER VIEW ═══════ -->
+<div id="view-tracker" class="view">
+
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-val" id="t-bankroll">$1000</div><div class="stat-lbl">Current Bankroll</div></div>
+    <div class="stat"><div class="stat-val" id="t-hands">0</div><div class="stat-lbl">Hands Played</div></div>
+    <div class="stat"><div class="stat-val" id="t-wins">0</div><div class="stat-lbl">Wins</div></div>
+    <div class="stat"><div class="stat-val" id="t-losses">0</div><div class="stat-lbl">Losses</div></div>
+    <div class="stat"><div class="stat-val" id="t-pushes">0</div><div class="stat-lbl">Pushes</div></div>
+    <div class="stat"><div class="stat-val" id="t-accuracy">—</div><div class="stat-lbl">Optimal %</div></div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title">Bankroll Over Time</div>
+    <canvas id="bankroll-chart" height="180"></canvas>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title">Strategy Accuracy Over Time</div>
+    <canvas id="accuracy-chart" height="140"></canvas>
+  </div>
+
+  <section class="panel">
+    <h2>Session Insights</h2>
+    <div id="session-insights" style="font-size:0.9rem;line-height:1.7;color:#ccc">
+      Play some hands in Practice mode and your stats will appear here.
+    </div>
+  </section>
+
+  <button class="deal-btn" onclick="resetSession()" style="background:rgba(231,76,60,0.7);color:#fff;margin-top:8px">Reset Session</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  STRATEGY TABLES
+// ═══════════════════════════════════════════════════════════════
+
+// Dealer upcards: 2 3 4 5 6 7 8 9 10 A
+const UPCARDS = ['2','3','4','5','6','7','8','9','10','A'];
+
+// Hard totals 5–17+ (rows) vs upcards (cols)
+// H=Hit, S=Stand, D=Double, DS=Double/Stand
+const HARD_ROWS = [5,6,7,8,9,10,11,12,13,14,15,16,17];
+const HARD = {
+  5:  ['H','H','H','H','H','H','H','H','H','H'],
+  6:  ['H','H','H','H','H','H','H','H','H','H'],
+  7:  ['H','H','H','H','H','H','H','H','H','H'],
+  8:  ['H','H','H','H','H','H','H','H','H','H'],
+  9:  ['H','D','D','D','D','H','H','H','H','H'],
+  10: ['D','D','D','D','D','D','D','D','H','H'],
+  11: ['D','D','D','D','D','D','D','D','D','H'],
+  12: ['H','H','S','S','S','H','H','H','H','H'],
+  13: ['S','S','S','S','S','H','H','H','H','H'],
+  14: ['S','S','S','S','S','H','H','H','H','H'],
+  15: ['S','S','S','S','S','H','H','H','H','H'],
+  16: ['S','S','S','S','S','H','H','H','H','H'],
+  17: ['S','S','S','S','S','S','S','S','S','S'],
+};
+
+// Soft totals A+2 through A+9
+const SOFT_ROWS = ['A+2','A+3','A+4','A+5','A+6','A+7','A+8','A+9'];
+const SOFT_TOTALS = {
+  'A+2': [13,15], 'A+3':[13,16],'A+4':[14,17],'A+5':[15,18],'A+6':[16,19],'A+7':[17,20],'A+8':[18,21],'A+9':[19,21]
+};
+// D=Double, H=Hit, S=Stand, DS=Double-or-Stand
+const SOFT = {
+  'A+2': ['H','H','H','D','D','H','H','H','H','H'],
+  'A+3': ['H','H','H','D','D','H','H','H','H','H'],
+  'A+4': ['H','H','D','D','D','H','H','H','H','H'],
+  'A+5': ['H','H','D','D','D','H','H','H','H','H'],
+  'A+6': ['H','D','D','D','D','H','H','H','H','H'],
+  'A+7': ['DS','D','D','D','D','S','S','H','H','H'],
+  'A+8': ['S','S','S','S','S','S','S','S','S','S'],
+  'A+9': ['S','S','S','S','S','S','S','S','S','S'],
+};
+
+// Pairs
+const PAIR_ROWS = ['2+2','3+3','4+4','5+5','6+6','7+7','8+8','9+9','10+10','A+A'];
+// SP=Split, H=Hit, D=Double, S=Stand
+const PAIRS = {
+  '2+2':   ['SP','SP','SP','SP','SP','SP','H','H','H','H'],
+  '3+3':   ['SP','SP','SP','SP','SP','SP','H','H','H','H'],
+  '4+4':   ['H','H','H','SP','SP','H','H','H','H','H'],
+  '5+5':   ['D','D','D','D','D','D','D','D','H','H'],
+  '6+6':   ['SP','SP','SP','SP','SP','H','H','H','H','H'],
+  '7+7':   ['SP','SP','SP','SP','SP','SP','H','H','H','H'],
+  '8+8':   ['SP','SP','SP','SP','SP','SP','SP','SP','SP','SP'],
+  '9+9':   ['SP','SP','SP','SP','SP','S','SP','SP','S','S'],
+  '10+10': ['S','S','S','S','S','S','S','S','S','S'],
+  'A+A':   ['SP','SP','SP','SP','SP','SP','SP','SP','SP','SP'],
+};
+
+// ── EXPLANATIONS ──────────────────────────────────────────────
+function getExplanation(tableType, rowKey, colIdx) {
+  const dealer = UPCARDS[colIdx];
+  const dealerNum = parseInt(dealer) || (dealer==='A' ? 11 : 10);
+  const dealerWeak = colIdx <= 4; // 2–6
+
+  if (tableType === 'hard') {
+    const total = parseInt(rowKey);
+    const action = HARD[total][colIdx];
+    let title = `Hard ${total} vs Dealer ${dealer} → ${actionName(action)}`;
+    let body = '';
+    if (total <= 8) body = "Any total of 8 or less cannot bust on a single card and is too low to stand on. Always hit — you have nothing to lose and everything to gain.";
+    else if (total === 9) {
+      if (dealerWeak) body = `Dealer ${dealer} is weak (bust probability ~35-42%). With 9, you're likely to land 15–19 after a hit. Doubling forces the dealer to beat you from a disadvantaged position.`;
+      else body = `Dealer ${dealer} is strong. Doubling with 9 when the dealer shows 7-A is too risky — the dealer is unlikely to bust. Just hit and hope to improve.`;
+    }
+    else if (total === 10) {
+      if (colIdx <= 7) body = `Hard 10 vs dealer ${dealer}: you can't bust on one card, and 30%+ of cards are 10-value — giving you 20. Doubling turns a profitable spot into a very profitable spot.`;
+      else body = `Hard 10 vs ${dealer}: the dealer already has a strong hand. You can still improve but the double is too risky here. Hit to try to reach 17+.`;
+    }
+    else if (total === 11) {
+      if (colIdx <= 8) body = `Hard 11 is the best doubling hand. You can't bust on one card. Any 10-value card (30%+ of deck) gives you 21. Doubling against dealer 2-10 is a positive expected value play.`;
+      else body = `Hard 11 vs Ace: the dealer may have blackjack. Still hit — you can't bust — but don't double since the dealer's blackjack risk makes it –EV to put more money out.`;
+    }
+    else if (total === 12) {
+      if (dealer==='4'||dealer==='5'||dealer==='6') body = `Hard 12 vs dealer ${dealer}: the dealer has a very weak upcard (bust probability ~40-42%). You have the best stiff vs. bust matchup. Stand and let the dealer bust.`;
+      else body = `Hard 12 vs dealer ${dealer}: the dealer is not likely to bust. You must try to improve — a 2-9 (62% of cards) keeps you at 14-21 without busting. Take the hit.`;
+    }
+    else if (total >= 13 && total <= 16) {
+      if (dealerWeak) body = `Hard ${total} vs dealer ${dealer}: weak dealer upcard = ~35-42% bust rate. "If the dealer might bust, don't." Standing preserves your hand and gives the dealer a chance to destroy themselves.`;
+      else body = `Hard ${total} vs dealer ${dealer}: the dealer is strong and unlikely to bust. You have a stiff hand that busts ~40% on a hit — but standing loses almost certainly. Take the hit; it's the less bad option.`;
+    }
+    else if (total >= 17) body = `Hard 17+ is a standing hand always. The risk of busting (58%+ for 17) far outweighs the small chance of improving. Lock in your total.`;
+    return { title, body };
+  }
+
+  if (tableType === 'soft') {
+    const action = SOFT[rowKey][colIdx];
+    const softTotal = SOFT_TOTALS[rowKey];
+    let title = `Soft ${softTotal[0]}/${softTotal[1]} (${rowKey}) vs Dealer ${dealer} → ${actionName(action)}`;
+    let body = '';
+    const lowCard = parseInt(rowKey.split('+')[1]);
+    if (rowKey === 'A+7') {
+      if (dealer==='2') body = "Soft 18 vs 2: doubling turns a marginal win into a big win. But if you can't double, standing on 18 beats the dealer's likely total when they show 2.";
+      else if (dealerWeak && colIdx >= 1) body = `Soft 18 vs ${dealer}: the dealer is weak. Double — you can't bust on the next card, and the dealer is likely to bust anyway. Maximum value play.`;
+      else if (dealer==='7'||dealer==='8') body = "Soft 18 vs 7 or 8: you likely already beat or tie the dealer's total. Stand and take the win/push. Don't risk weakening your 18.";
+      else body = `Soft 18 vs ${dealer}: the dealer will likely make 17+. An 18 probably loses. Hit to try to improve — the ace can absorb a low card without damage.`;
+    } else if (lowCard <= 5) {
+      if (action==='D') body = `Soft ${softTotal[0]} vs ${dealer}: you can't bust. The dealer is weak. Doubling means you likely win double when the dealer busts, and you can still draw to 18-21 on your next card.`;
+      else body = `Soft ${softTotal[0]} vs ${dealer}: the dealer is too strong to double. Hit — you need to improve and the ace gives you insurance against busting.`;
+    } else if (rowKey==='A+8'||rowKey==='A+9') {
+      body = `Soft ${softTotal[0]}/${softTotal[1]} is already a powerful hand. You're heavily favored to win. Never double or hit soft 19/20 — you'd only be risking a near-certain win.`;
+    }
+    if (!body) body = `The ace in a soft hand means you cannot bust on one card. Soft totals allow you to play aggressively — doubling or hitting — without the risk a hard total carries.`;
+    return { title, body };
+  }
+
+  if (tableType === 'pairs') {
+    const action = PAIRS[rowKey][colIdx];
+    let title = `Pair of ${rowKey.split('+')[0]}s vs Dealer ${dealer} → ${actionName(action)}`;
+    let body = '';
+    const pairCard = rowKey.split('+')[0];
+    if (pairCard==='A') body = "Two aces is a soft 12 — terrible. But split into two separate hands each starting with an ace? Every ace has ~31% chance to become 21. Always split aces.";
+    else if (pairCard==='8') body = "Hard 16 is the worst hand in blackjack — highest bust rate, lowest win rate. Splitting always gives two hands starting at 8, each with a real shot at 18. Split 8s always, even vs. an ace.";
+    else if (pairCard==='10') body = "20 is a near-certain winner. Never break up a 20 — you'd trade a 92%+ win probability for two hands starting at 10. Only greed or bad strategy splits 10s.";
+    else if (pairCard==='5') body = "5+5 = Hard 10, one of the best doubling hands. Never split — you'd trade an excellent hand for two weak 5-high hands. Play this as a hard 10 and double against 2-9.";
+    else if (pairCard==='9') {
+      if (dealer==='7') body = "Pair of 9s vs 7: dealer likely has 17. Your 18 beats 17. Stand — splitting risks 18 to gain nothing.";
+      else if (dealerWeak || dealer==='8'||dealer==='9') body = `9s vs ${dealer}: your 18 is likely behind the dealer's potential total. Splitting gives two 9-high starting hands — both have a better chance of reaching 19+ than your current 18 does of winning.`;
+      else body = "9s vs 10 or Ace: dealer is too strong. Stand on 18 and hope they bust or fall short. Splitting would create two hands against a dangerous dealer.";
+    }
+    else if (pairCard==='4') {
+      if (dealer==='5'||dealer==='6') body = "4+4 vs 5 or 6: the only case to split 4s. The dealer is at maximum bust risk. Splitting turns two 4s into two starting hands that could each reach 14-21. Against 5-6, the split EV edges out hitting.";
+      else body = "4+4 as 8 is better to hit — you can reach 18+ on the next card. Splitting 4s makes two weak starting hands. Only split vs 5-6.";
+    }
+    else if (action==='SP') {
+      if (dealerWeak) body = `Pair of ${pairCard}s vs weak dealer ${dealer}: splitting creates two hands, each likely to beat a busting dealer. The individual hand EV of each split hand beats keeping them as a pair.`;
+      else body = `Pair of ${pairCard}s vs ${dealer}: splitting is still better here — each hand starting at ${pairCard} has positive expected value against this upcard.`;
+    }
+    else body = `Pair of ${pairCard}s vs ${dealer}: splitting would make two worse hands. The combined pair total is stronger as-is. Hit or stand as indicated by basic strategy.`;
+    return { title, body };
+  }
+  return { title: '', body: '' };
+}
+
+function actionName(a) {
+  return {H:'Hit',S:'Stand',D:'Double Down',SP:'Split',DS:'Double (else Stand)'}[a] || a;
+}
+
+// ── TABLE RENDERING ──────────────────────────────────────────
+let currentTable = 'hard';
+
+function renderTable(type) {
+  const container = document.getElementById('strat-table-container');
+  let rows, data, label;
+  if (type==='hard')  { rows=HARD_ROWS; data=HARD; label='Player Hard Total'; }
+  if (type==='soft')  { rows=SOFT_ROWS; data=SOFT; label='Player Soft Hand'; }
+  if (type==='pairs') { rows=PAIR_ROWS; data=PAIRS; label='Player Pair'; }
+
+  let html = `<table class="strat"><thead><tr><th>${label}</th>`;
+  UPCARDS.forEach(u => html += `<th>${u}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += `<tr><th>${row}</th>`;
+    data[row].forEach((cell, ci) => {
+      html += `<td class="${cell}" onclick="showExplanation('${type}','${row}',${ci})"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function showTable(type) {
+  currentTable = type;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['hard','soft','pairs'][i]===type);
+  });
+  renderTable(type);
+  document.getElementById('exp-title').textContent = 'Click any cell to learn the intuition';
+  document.getElementById('exp-body').textContent = 'Each cell shows the mathematically optimal play for that player hand vs. dealer upcard. The colors group similar decisions so patterns become visible at a glance.';
+  document.getElementById('exp-body').style.color = '#ccc';
+}
+
+function showExplanation(type, row, colIdx) {
+  const {title, body} = getExplanation(type, row, colIdx);
+  document.getElementById('exp-title').textContent = title;
+  document.getElementById('exp-body').textContent = body;
+  document.getElementById('exp-body').style.color = '#e0d8c8';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CARD / DECK ENGINE
+// ═══════════════════════════════════════════════════════════════
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function cardValue(rank) {
+  if (rank==='A') return 11;
+  if (['J','Q','K'].includes(rank)) return 10;
+  return parseInt(rank);
+}
+
+function isRed(suit) { return suit==='♥' || suit==='♦'; }
+
+function makeDeck() {
+  const deck = [];
+  for (const s of SUITS) for (const r of RANKS) deck.push({rank:r, suit:s});
+  for (let i=deck.length-1;i>0;i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]] = [deck[j],deck[i]];
+  }
+  return deck;
+}
+
+function handValue(cards) {
+  let total = 0, aces = 0;
+  for (const c of cards) {
+    total += cardValue(c.rank);
+    if (c.rank==='A') aces++;
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return total;
+}
+
+function handDisplay(cards) {
+  const v = handValue(cards);
+  const hasAce = cards.some(c=>c.rank==='A');
+  const softV = cards.reduce((s,c)=>s+cardValue(c.rank),0);
+  if (hasAce && softV !== v && softV <= 21) return `${v}/${softV}`;
+  return `${v}`;
+}
+
+function isSoft(cards) {
+  let total = 0, aces = 0;
+  for (const c of cards) { total += cardValue(c.rank); if (c.rank==='A') aces++; }
+  return aces > 0 && total <= 21 && total !== handValue(cards) + 10;
+  // simpler:
+}
+function isSoftHand(cards) {
+  let sum = 0, aces = 0;
+  for (const c of cards) { sum += cardValue(c.rank); if (c.rank==='A') aces++; }
+  if (aces === 0) return false;
+  return sum > 21 ? false : (sum - 10*(aces>0?1:0)) !== sum;
+}
+function hasSoftAce(cards) {
+  let sum = 0, aces=0;
+  for(const c of cards){ sum+=cardValue(c.rank); if(c.rank==='A')aces++; }
+  while(sum>21&&aces>0){sum-=10;aces--;}
+  // if any ace is still counting as 11, it's soft
+  const hard = cards.reduce((s,c)=>s+(c.rank==='A'?1:cardValue(c.rank)),0);
+  return sum > hard;
+}
+
+function renderCards(containerId, cards, hideSecond=false) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  cards.forEach((c,i) => {
+    const div = document.createElement('div');
+    if (hideSecond && i===1) {
+      div.className = 'card face-down';
+    } else {
+      div.className = 'card' + (isRed(c.suit)?' red':'');
+      div.innerHTML = `<span>${c.rank}</span><span class="suit">${c.suit}</span>`;
+    }
+    el.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  OPTIMAL STRATEGY LOOKUP
+// ═══════════════════════════════════════════════════════════════
+function dealerColIdx(dealerCard) {
+  const r = dealerCard.rank;
+  if (r==='A') return 9;
+  if (['J','Q','K'].includes(r)) return 8;
+  return parseInt(r) - 2;
+}
+
+function optimalAction(playerCards, dealerUpcard, canDouble, canSplit) {
+  const col = dealerColIdx(dealerUpcard);
+  const val = handValue(playerCards);
+
+  // Blackjack
+  if (playerCards.length===2 && val===21) return 'stand';
+
+  // Pair check
+  if (canSplit && playerCards.length===2 && cardValue(playerCards[0].rank)===cardValue(playerCards[1].rank)) {
+    const pairRank = playerCards[0].rank;
+    let rowKey;
+    if (pairRank==='A') rowKey='A+A';
+    else if (['J','Q','K'].includes(pairRank)) rowKey='10+10';
+    else rowKey=`${pairRank}+${pairRank}`;
+    if (PAIRS[rowKey]) {
+      const action = PAIRS[rowKey][col];
+      if (action==='SP') return 'split';
+      if (action==='D' && canDouble) return 'double';
+      if (action==='D') return 'hit';
+      return action.toLowerCase();
+    }
+  }
+
+  // Soft hand
+  if (hasSoftAce(playerCards) && playerCards.length >= 2) {
+    const hard = playerCards.reduce((s,c)=>s+(c.rank==='A'?1:cardValue(c.rank)),0);
+    const softTotal = handValue(playerCards);
+    // match to soft row: A + (softTotal - 11)
+    const lowVal = softTotal - 11;
+    if (lowVal >= 2 && lowVal <= 9) {
+      const rowKey = `A+${lowVal}`;
+      if (SOFT[rowKey]) {
+        const action = SOFT[rowKey][col];
+        if (action==='DS') return canDouble ? 'double' : 'stand';
+        if (action==='D') return canDouble ? 'double' : 'hit';
+        return action.toLowerCase();
+      }
+    }
+    if (softTotal >= 19) return 'stand';
+  }
+
+  // Hard total
+  const hardTotal = Math.min(val, 17); // cap at 17 for table
+  const tableRow = val >= 17 ? 17 : val;
+  const cappedRow = Math.max(5, Math.min(17, tableRow));
+  if (HARD[cappedRow]) {
+    const action = HARD[cappedRow][col];
+    if (action==='D') return canDouble ? 'double' : 'hit';
+    if (action==='DS') return canDouble ? 'double' : 'stand';
+    return action.toLowerCase();
+  }
+  return val < 17 ? 'hit' : 'stand';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PRACTICE MODE STATE
+// ═══════════════════════════════════════════════════════════════
+let deck = [];
+let playerHand = [], dealerHand = [];
+let currentBet = 50;
+let bankroll = 1000;
+let handsPlayed = 0;
+let correctDecisions = 0, totalDecisions = 0;
+let wins = 0, losses = 0, pushes = 0;
+let gamePhase = 'betting'; // betting | player | dealer | done
+let canDouble = false;
+let canSplit = false;
+let bankrollHistory = [1000];
+let accuracyHistory = [];
+let currentHandCorrect = true;
+
+function setBet(amount) {
+  currentBet = amount;
+  document.getElementById('bet-display').textContent = `$${amount}`;
+  document.querySelectorAll('.chip-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent.replace('$',''))===amount));
+}
+
+function dealHand() {
+  if (deck.length < 15) deck = makeDeck();
+  playerHand = [deck.pop(), deck.pop()];
+  dealerHand = [deck.pop(), deck.pop()];
+  gamePhase = 'player';
+  canDouble = true;
+  canSplit = playerHand.length===2 && cardValue(playerHand[0].rank)===cardValue(playerHand[1].rank);
+  currentHandCorrect = true;
+
+  document.getElementById('result-banner').className = 'result-banner';
+  hideFeedback();
+
+  renderCards('dealer-cards', dealerHand, true);
+  renderCards('player-cards', playerHand);
+  document.getElementById('dealer-value').textContent = '?';
+  document.getElementById('player-value').textContent = handDisplay(playerHand);
+
+  document.getElementById('deal-btn').disabled = true;
+  setActionBtns(true);
+  document.getElementById('btn-split').disabled = !canSplit;
+  document.getElementById('btn-double').disabled = !canDouble;
+
+  // Check player blackjack
+  if (handValue(playerHand)===21) {
+    const dealerBJ = handValue(dealerHand)===21;
+    revealDealerAndFinish(dealerBJ ? 'push' : 'blackjack');
+    return;
+  }
+}
+
+function playerAction(action) {
+  const opt = optimalAction(playerHand, dealerHand[0], canDouble, canSplit);
+  const isCorrect = action === opt;
+  totalDecisions++;
+  if (isCorrect) correctDecisions++;
+  else currentHandCorrect = false;
+
+  showStratFeedback(action, opt, isCorrect);
+
+  if (action==='hit') {
+    playerHand.push(deck.pop());
+    canDouble = false; canSplit = false;
+    document.getElementById('btn-double').disabled = true;
+    document.getElementById('btn-split').disabled = true;
+    renderCards('player-cards', playerHand);
+    document.getElementById('player-value').textContent = handDisplay(playerHand);
+    if (handValue(playerHand) > 21) {
+      setTimeout(()=>finishHand('bust'), 600);
+    } else if (handValue(playerHand)===21) {
+      setTimeout(()=>dealerPlay(), 600);
+    }
+  } else if (action==='stand') {
+    setActionBtns(false);
+    setTimeout(()=>dealerPlay(), 300);
+  } else if (action==='double') {
+    if (currentBet > bankroll) { showInfo('Not enough bankroll to double!'); return; }
+    playerHand.push(deck.pop());
+    currentBet *= 2;
+    canDouble = false; canSplit = false;
+    renderCards('player-cards', playerHand);
+    document.getElementById('player-value').textContent = handDisplay(playerHand);
+    setActionBtns(false);
+    if (handValue(playerHand) > 21) {
+      setTimeout(()=>finishHand('bust'), 700);
+    } else {
+      setTimeout(()=>dealerPlay(), 700);
+    }
+  } else if (action==='split') {
+    // Simple split: take first card of each pair, deal new card to each
+    const c1 = playerHand[0], c2 = playerHand[1];
+    playerHand = [c1, deck.pop()];
+    canDouble = true; canSplit = false;
+    document.getElementById('btn-split').disabled = true;
+    renderCards('player-cards', playerHand);
+    document.getElementById('player-value').textContent = handDisplay(playerHand);
+    if (handValue(playerHand)===21) {
+      setTimeout(()=>dealerPlay(), 600);
+    }
+  }
+}
+
+function dealerPlay() {
+  setActionBtns(false);
+  revealDealerAndFinish(null);
+}
+
+function revealDealerAndFinish(forceResult) {
+  renderCards('dealer-cards', dealerHand, false);
+  document.getElementById('dealer-value').textContent = handDisplay(dealerHand);
+
+  if (forceResult) { finishHand(forceResult); return; }
+
+  // Dealer draws to 17
+  let iterations = 0;
+  const drawDealer = () => {
+    if (handValue(dealerHand) < 17 && iterations < 10) {
+      iterations++;
+      dealerHand.push(deck.pop());
+      renderCards('dealer-cards', dealerHand);
+      document.getElementById('dealer-value').textContent = handDisplay(dealerHand);
+      setTimeout(drawDealer, 350);
+    } else {
+      const pv = handValue(playerHand);
+      const dv = handValue(dealerHand);
+      if (dv > 21) finishHand('dealer-bust');
+      else if (pv > dv) finishHand('win');
+      else if (pv < dv) finishHand('lose');
+      else finishHand('push');
+    }
+  };
+  setTimeout(drawDealer, 400);
+}
+
+function finishHand(result) {
+  gamePhase = 'done';
+  handsPlayed++;
+  let payout = 0;
+  let bannerClass = '', bannerText = '';
+
+  if (result==='blackjack') {
+    payout = Math.floor(currentBet * 1.5);
+    wins++;
+    bannerClass='bj'; bannerText=`BLACKJACK! +$${payout}`;
+  } else if (result==='bust') {
+    payout = -currentBet;
+    losses++;
+    bannerClass='lose'; bannerText=`BUST — You lose $${currentBet}`;
+  } else if (result==='dealer-bust') {
+    payout = currentBet;
+    wins++;
+    bannerClass='win'; bannerText=`Dealer Busts! +$${currentBet}`;
+  } else if (result==='win') {
+    payout = currentBet;
+    wins++;
+    bannerClass='win'; bannerText=`You Win! +$${currentBet}`;
+  } else if (result==='lose') {
+    payout = -currentBet;
+    losses++;
+    bannerClass='lose'; bannerText=`You Lose — -$${currentBet}`;
+  } else if (result==='push') {
+    payout = 0;
+    pushes++;
+    bannerClass='push'; bannerText='Push — Bet returned';
+  }
+
+  // Reset bet if doubled
+  if (currentBet > 50 && currentBet % 50 === 0) {
+    // was doubled; reset to half
+    currentBet = currentBet / 2;
+  }
+
+  bankroll += payout;
+  if (bankroll < 0) bankroll = 0;
+
+  bankrollHistory.push(bankroll);
+  const acc = totalDecisions>0 ? Math.round(correctDecisions/totalDecisions*100) : null;
+  if (acc !== null) accuracyHistory.push(acc);
+
+  const banner = document.getElementById('result-banner');
+  banner.className = `result-banner ${bannerClass}`;
+  banner.textContent = bannerText;
+
+  updatePracticeStats();
+  updateTrackerStats();
+  drawCharts();
+
+  document.getElementById('deal-btn').disabled = false;
+  setActionBtns(false);
+}
+
+function updatePracticeStats() {
+  document.getElementById('bankroll-display').textContent = `$${bankroll}`;
+  document.getElementById('hands-display').textContent = handsPlayed;
+  const acc = totalDecisions>0 ? Math.round(correctDecisions/totalDecisions*100)+'%' : '—';
+  document.getElementById('correct-display').textContent = acc;
+  const net = bankroll - 1000;
+  const netEl = document.getElementById('net-display');
+  netEl.textContent = (net>=0?'+':'') + `$${net}`;
+  netEl.className = 'stat-val ' + (net>0?'up':net<0?'down':'');
+}
+
+function updateTrackerStats() {
+  document.getElementById('t-bankroll').textContent = `$${bankroll}`;
+  document.getElementById('t-hands').textContent = handsPlayed;
+  document.getElementById('t-wins').textContent = wins;
+  document.getElementById('t-losses').textContent = losses;
+  document.getElementById('t-pushes').textContent = pushes;
+  const acc = totalDecisions>0 ? Math.round(correctDecisions/totalDecisions*100)+'%' : '—';
+  document.getElementById('t-accuracy').textContent = acc;
+
+  // session insights
+  const insights = document.getElementById('session-insights');
+  if (handsPlayed > 0) {
+    const net = bankroll - 1000;
+    const winRate = handsPlayed>0 ? (wins/handsPlayed*100).toFixed(1) : 0;
+    const wr = totalDecisions>0 ? (correctDecisions/totalDecisions*100).toFixed(1) : 'N/A';
+    const edge = net / (handsPlayed * currentBet) * 100;
+    insights.innerHTML = `
+      <strong style="color:var(--gold)">Session Summary</strong><br>
+      Win rate: <b>${winRate}%</b> | Push rate: <b>${handsPlayed>0?(pushes/handsPlayed*100).toFixed(1):0}%</b><br>
+      Strategy accuracy: <b>${wr}%</b> (optimal basic strategy = 99–100%)<br>
+      Effective edge: <b>${edge.toFixed(2)}%</b> per hand (house edge with perfect play ≈ −0.5%)<br>
+      Net P&L: <b style="color:${net>=0?'var(--correct)':'var(--wrong)'}">${net>=0?'+':''}$${net}</b> over ${handsPlayed} hands<br><br>
+      <span style="color:var(--muted);font-size:0.85rem">Variance is normal over small samples. With perfect strategy the expected loss over 1000 hands at $50/hand is about $250. Short-term swings of ±$500+ are completely normal.</span>
+    `;
+  }
+}
+
+function setActionBtns(enabled) {
+  ['btn-hit','btn-stand','btn-double','btn-split'].forEach(id => {
+    document.getElementById(id).disabled = !enabled;
+  });
+}
+
+function showStratFeedback(chosen, optimal, isCorrect) {
+  const fb = document.getElementById('practice-feedback');
+  if (isCorrect) {
+    fb.className = 'feedback correct';
+    fb.innerHTML = `<strong>Correct — ${actionName(chosen.charAt(0).toUpperCase()+chosen.slice(1))}</strong>` + getStratReason(optimal, playerHand, dealerHand[0]);
+  } else {
+    fb.className = 'feedback wrong';
+    fb.innerHTML = `<strong>Not optimal — you chose ${actionName(chosen.charAt(0).toUpperCase()+chosen.slice(1))}, optimal is ${actionName(optimal.charAt(0).toUpperCase()+optimal.slice(1))}</strong>` + getStratReason(optimal, playerHand, dealerHand[0]);
+  }
+}
+
+function getStratReason(action, playerCards, dealerUp) {
+  const col = dealerColIdx(dealerUp);
+  const pv = handValue(playerCards);
+  let hint = '';
+  if (action==='split') hint = "Splitting this pair maximizes expected value for each sub-hand vs. this dealer upcard.";
+  else if (action==='double') hint = `Your total is strong and the dealer's ${dealerUp} gives you a profitable double opportunity. Always double for maximum EV.`;
+  else if (action==='stand') hint = `Stand — the dealer's ${dealerUp} makes a bust likely, or your total is strong enough. Don't risk busting.`;
+  else hint = `Hit — your current total of ${pv} is too low to beat the dealer's likely outcome. The math says keep drawing.`;
+  return `<br><span style="color:#ccc;font-size:0.88rem">${hint}</span>`;
+}
+
+function showInfo(msg) {
+  const fb = document.getElementById('practice-feedback');
+  fb.className = 'feedback info';
+  fb.innerHTML = msg;
+}
+
+function hideFeedback() {
+  document.getElementById('practice-feedback').className = 'feedback';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHARTS
+// ═══════════════════════════════════════════════════════════════
+function drawCharts() {
+  drawBankrollChart();
+  drawAccuracyChart();
+}
+
+function drawBankrollChart() {
+  const canvas = document.getElementById('bankroll-chart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 600;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = 180 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const w = W, h = 180;
+  ctx.clearRect(0,0,w,h);
+
+  const data = bankrollHistory;
+  if (data.length < 2) return;
+
+  const pad = {top:16, right:20, bottom:28, left:56};
+  const pw = w - pad.left - pad.right;
+  const ph = h - pad.top - pad.bottom;
+
+  const minV = Math.min(...data);
+  const maxV = Math.max(...data, 1000);
+  const range = maxV - minV || 100;
+
+  const xScale = i => pad.left + (i/(data.length-1)) * pw;
+  const yScale = v => pad.top + ph - ((v-minV)/range)*ph;
+
+  // Grid + baseline at 1000
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i=0;i<=4;i++) {
+    const y = pad.top + (i/4)*ph;
+    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+pw,y); ctx.stroke();
+  }
+  // Baseline $1000
+  const baseY = yScale(1000);
+  ctx.strokeStyle = 'rgba(201,168,76,0.25)';
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, baseY); ctx.lineTo(pad.left+pw, baseY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Fill
+  const grad = ctx.createLinearGradient(0,pad.top,0,pad.top+ph);
+  const last = data[data.length-1];
+  const fillColor = last >= 1000 ? '39,174,96' : '231,76,60';
+  grad.addColorStop(0, `rgba(${fillColor},0.35)`);
+  grad.addColorStop(1, `rgba(${fillColor},0.02)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(data[0]));
+  data.forEach((v,i) => { if(i>0) ctx.lineTo(xScale(i),yScale(v)); });
+  ctx.lineTo(xScale(data.length-1), pad.top+ph);
+  ctx.lineTo(xScale(0), pad.top+ph);
+  ctx.closePath(); ctx.fill();
+
+  // Line
+  ctx.strokeStyle = last >= 1000 ? '#6eff9e' : '#ff8070';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v,i) => i===0 ? ctx.moveTo(xScale(i),yScale(v)) : ctx.lineTo(xScale(i),yScale(v)));
+  ctx.stroke();
+
+  // Y labels
+  ctx.fillStyle = 'rgba(200,180,130,0.6)';
+  ctx.font = `${11*window.devicePixelRatio/window.devicePixelRatio}px monospace`;
+  ctx.textAlign = 'right';
+  [minV, Math.round((minV+maxV)/2), maxV].forEach(v => {
+    ctx.fillText(`$${v}`, pad.left-6, yScale(v)+4);
+  });
+
+  // X label
+  ctx.fillStyle = 'rgba(200,180,130,0.4)';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${data.length-1} hands`, pad.left+pw/2, h-6);
+}
+
+function drawAccuracyChart() {
+  const canvas = document.getElementById('accuracy-chart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 600;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = 140 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const w = W, h = 140;
+  ctx.clearRect(0,0,w,h);
+
+  const data = accuracyHistory;
+  if (data.length < 2) return;
+
+  const pad = {top:14, right:20, bottom:26, left:40};
+  const pw = w - pad.left - pad.right;
+  const ph = h - pad.top - pad.bottom;
+
+  const xScale = i => pad.left + (i/(data.length-1))*pw;
+  const yScale = v => pad.top + ph - (v/100)*ph;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  [0,50,75,100].forEach(pct => {
+    const y = yScale(pct);
+    ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+pw,y); ctx.stroke();
+    ctx.fillStyle='rgba(200,180,130,0.4)';
+    ctx.font='10px monospace';
+    ctx.textAlign='right';
+    ctx.fillText(`${pct}%`, pad.left-4, y+4);
+  });
+
+  // Line
+  ctx.strokeStyle = '#c9a84c';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v,i) => i===0 ? ctx.moveTo(xScale(i),yScale(v)) : ctx.lineTo(xScale(i),yScale(v)));
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(200,180,130,0.4)';
+  ctx.textAlign='center';
+  ctx.font='10px monospace';
+  ctx.fillText(`Decisions`, pad.left+pw/2, h-4);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RESET
+// ═══════════════════════════════════════════════════════════════
+function resetSession() {
+  if (!confirm('Reset session? All progress will be lost.')) return;
+  bankroll = 1000; handsPlayed = 0;
+  correctDecisions = 0; totalDecisions = 0;
+  wins = 0; losses = 0; pushes = 0;
+  bankrollHistory = [1000]; accuracyHistory = [];
+  currentBet = 50;
+  updatePracticeStats();
+  updateTrackerStats();
+  drawCharts();
+  playerHand=[]; dealerHand=[];
+  renderCards('dealer-cards',[]);
+  renderCards('player-cards',[]);
+  document.getElementById('dealer-value').textContent='';
+  document.getElementById('player-value').textContent='';
+  document.getElementById('result-banner').className='result-banner';
+  hideFeedback();
+  document.getElementById('deal-btn').disabled=false;
+  setActionBtns(false);
+  document.getElementById('session-insights').textContent='Play some hands in Practice mode and your stats will appear here.';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════════════════════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['training','practice','tracker'][i]===name);
+  });
+  if (name==='tracker') { setTimeout(drawCharts, 50); }
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+renderTable('hard');
+deck = makeDeck();
+setActionBtns(false);
+</script>
+</body>
+</html>
